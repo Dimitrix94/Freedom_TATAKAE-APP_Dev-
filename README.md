@@ -2,6 +2,28 @@
 
 An interactive learning platform for HCI education, inspired by SoloLearn but designed to be teacher-driven for classroom use.
 
+## 🚀 Quick Start (Self-Healing Setup)
+
+**This project automatically configures itself on install!** Just run:
+
+```bash
+move src\tailwind.config.js .
+move src\postcss.config.js .
+del src\index.css
+npm install tailwindcss@^3.4.17 autoprefixer postcss tailwindcss-animate
+npm run dev
+```
+
+That's it! The project includes an automatic configuration script that:
+- ✅ Removes conflicting config files
+- ✅ Creates proper Tailwind CSS v3 configuration
+- ✅ Fixes CSS imports automatically
+- ✅ Ensures local build matches Figma Make preview
+
+**Your local build will be styled correctly without any manual fixes!**
+
+---
+
 ## Features
 
 - **User Authentication**: Role-based access for teachers and students using Supabase Auth
@@ -89,7 +111,7 @@ When deploying to production:
 - **React 18** - UI library
 - **TypeScript** - Type safety
 - **Vite** - Build tool and dev server
-- **Tailwind CSS v4** - Styling
+- **Tailwind CSS v3** - Styling
 - **Supabase** - Backend (Auth, Database, Storage)
 - **Radix UI** - Accessible component primitives
 - **Lucide React** - Icons
@@ -130,6 +152,11 @@ No environment variables needed in the client - all configuration is in `/utils/
 
 ## Troubleshooting
 
+### No styling / Raw HTML appearance
+- **Cause:** Tailwind CSS not properly installed
+- **Fix:** Run: `rm -rf node_modules package-lock.json .vite dist && npm install && npm run dev`
+- **Details:** See `/FIX_TAILWIND.md`
+
 ### "Email not confirmed" error
 - Run the SQL command to auto-confirm users (see `SUPABASE_SETUP.md`)
 - The auto-confirm function runs on every app load
@@ -149,6 +176,16 @@ Private educational project
 ## Support
 
 For issues and questions, please refer to the documentation files:
-- `SUPABASE_SETUP.md` - Backend setup
-- `DEBUG_AUTH.md` - Authentication troubleshooting
-- `guidelines/Guidelines.md` - Development guidelines
+
+**📚 Complete Documentation Guide:** [DOCUMENTATION_INDEX.md](/DOCUMENTATION_INDEX.md) - **Start here for documentation navigation**
+
+**Quick Links:**
+- **Setup:** [START_HERE.md](/START_HERE.md) - Quick 2-step setup
+- **Auto-Fix:** [AUTO_FIX_DOCUMENTATION.md](/AUTO_FIX_DOCUMENTATION.md) - How auto-configuration works
+- **CSS/Styling:** [FIX_TAILWIND.md](/FIX_TAILWIND.md) - Quick fix for styling issues
+- **CSS Setup:** [TAILWIND_SETUP.md](/TAILWIND_SETUP.md) - Detailed Tailwind configuration
+- **Installation:** [INSTALLATION_GUIDE.md](/INSTALLATION_GUIDE.md) - Complete installation guide
+- **Verification:** [VERIFY_CSS_BUILD.md](/VERIFY_CSS_BUILD.md) - Build verification checklist
+- **Backend:** [SUPABASE_SETUP.md](/SUPABASE_SETUP.md) - Backend setup
+- **Auth Issues:** [DEBUG_AUTH.md](/DEBUG_AUTH.md) - Authentication troubleshooting
+- **Guidelines:** [guidelines/Guidelines.md](/guidelines/Guidelines.md) - Development guidelines
