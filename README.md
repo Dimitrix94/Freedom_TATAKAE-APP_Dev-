@@ -7,10 +7,7 @@ An interactive learning platform for HCI education, inspired by SoloLearn but de
 **This project automatically configures itself on install!** Just run:
 
 ```bash
-move src\tailwind.config.js .
-move src\postcss.config.js .
-del src\index.css
-npm install tailwindcss@^3.4.17 autoprefixer postcss tailwindcss-animate
+npm install
 npm run dev
 ```
 
