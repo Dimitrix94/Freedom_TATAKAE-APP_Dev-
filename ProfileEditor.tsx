@@ -286,12 +286,13 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
     setChangingPassword(true);
 
     const formData = new FormData(e.currentTarget);
+    const oldPassword = formData.get('old-password') as string;
     const newPassword = formData.get('new-password') as string;
     const confirmPassword = formData.get('confirm-password') as string;
 
     // Validate passwords match
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error('New passwords do not match');
       setChangingPassword(false);
       return;
     }
@@ -303,8 +304,28 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
       return;
     }
 
+    // Validate old password is provided
+    if (!oldPassword || oldPassword.trim() === '') {
+      toast.error('Please enter your current password');
+      setChangingPassword(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
+      
+      // First verify the old password by attempting to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword,
+      });
+
+      if (signInError) {
+        console.error('Old password verification failed:', signInError);
+        toast.error('Current password is incorrect. Please try again or use "Forgot Password".');
+        setChangingPassword(false);
+        return;
+      }
       
       // Update password using Supabase Auth
       const { data, error } = await supabase.auth.updateUser({
@@ -326,6 +347,27 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
       toast.error(error.message || 'Failed to change password. Please try again.');
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    try {
+      const supabase = createClient();
+      
+      // Send password reset email
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/#type=recovery`,
+      });
+
+      if (error) {
+        console.error('Password reset error:', error);
+        throw error;
+      }
+
+      toast.success('Password reset link sent to your email! Check your inbox.');
+    } catch (error: any) {
+      console.error('Password reset exception:', error);
+      toast.error(error.message || 'Failed to send reset email. Please try again.');
     }
   };
 
@@ -509,6 +551,19 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
             {/* Change Password Form */}
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="old-password" className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Current Password
+                </Label>
+                <Input
+                  id="old-password"
+                  name="old-password"
+                  type="password"
+                  placeholder="Enter current password"
+                  minLength={6}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="new-password" className="flex items-center gap-2">
                   <Lock className="w-4 h-4" />
                   New Password
@@ -543,6 +598,22 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
                 {changingPassword ? 'Changing Password...' : 'Update Password'}
               </Button>
             </form>
+
+            {/* Forgot Password Section */}
+            <div className="pt-2 border-t">
+              <p className="text-sm text-gray-600 mb-3">
+                Forgot your current password? We can send you a reset link.
+              </p>
+              <Button 
+                type="button"
+                variant="ghost"
+                className="w-full text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" 
+                onClick={handleForgotPassword}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Send Password Reset Email
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
