@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { getServerUrl } from '../utils/supabase/client';
+import { serverFetch } from '../utils/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { BookOpen, Search, BookMarked } from 'lucide-react';
+import { BookOpen, Search, Filter, Download, ExternalLink, FileText, Video, Link as LinkIcon, BookMarked } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 
 interface Material {
@@ -41,7 +42,7 @@ export function LearningMaterials({ session }: LearningMaterialsProps) {
 
   const fetchMaterials = async () => {
     try {
-      const response = await fetch(getServerUrl('/materials'), {
+      const response = await serverFetch('/materials', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },

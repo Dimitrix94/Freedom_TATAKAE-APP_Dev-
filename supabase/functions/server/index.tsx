@@ -603,6 +603,7 @@ app.post(
       // Save submission to KV store
       const submissionId = `submission:${user.id}:${assessmentId}:${Date.now()}`;
       await kv.set(submissionId, {
+        id: submissionId,
         userId: user.id,
         assessmentId,
         answers,
@@ -832,8 +833,8 @@ app.get("/make-server-d59960c4/submissions/my-results", async (c) => {
   }
 });
 
-// Get submissions for a specific student
-app.get("/make-server-d59960c4/submissions/student/:studentId", async (c) => {
+// Get submissions for a specific student (with full assessment details for review)
+app.get("/make-server-d59960c4/submissions/:studentId", async (c) => {
   try {
     const user = await verifyAuth(c.req.header("Authorization"));
     if (!user) return c.json({ error: "Unauthorized" }, 401);
@@ -850,16 +851,35 @@ app.get("/make-server-d59960c4/submissions/student/:studentId", async (c) => {
 
     const submissions = await kv.getByPrefix(`submission:${studentId}:`);
     
-    // Enrich with assessment details
+    // Enrich with FULL assessment details including questions
     const enrichedSubmissions = await Promise.all(
       submissions.map(async (submission: any) => {
-        const assessment = await kv.get(submission.assessmentId);
+        const assessmentKey = submission.assessmentId.startsWith('assessment:') 
+          ? submission.assessmentId 
+          : `assessment:${submission.assessmentId}`;
+        const assessment = await kv.get(assessmentKey);
+        
         return {
-          ...submission,
-          assessmentTitle: assessment?.title || "Unknown Assessment",
-          assessmentCategory: assessment?.category || "General",
+          id: submission.id || `${submission.userId}:${submission.assessmentId}:${submission.submittedAt}`,
+          userId: submission.userId,
+          assessmentId: submission.assessmentId,
+          answers: submission.answers,
+          score: submission.score,
+          totalQuestions: submission.totalQuestions,
+          submittedAt: submission.submittedAt,
+          assessment: assessment ? {
+            id: assessment.id,
+            title: assessment.title,
+            description: assessment.description,
+            questions: assessment.questions || []
+          } : null
         };
       })
+    );
+
+    // Sort by submission date (most recent first)
+    enrichedSubmissions.sort((a, b) => 
+      new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
 
     return c.json({ submissions: enrichedSubmissions });

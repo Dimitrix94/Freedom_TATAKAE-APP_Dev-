@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getServerUrl } from '../utils/supabase/client';
+import { serverFetch } from '../utils/supabase/client';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -46,7 +46,7 @@ export function AssessmentManager({ session }: AssessmentManagerProps) {
 
   const fetchAssessments = async () => {
     try {
-      const response = await fetch(getServerUrl('/assessments'), {
+      const response = await serverFetch('/assessments', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
@@ -110,7 +110,7 @@ export function AssessmentManager({ session }: AssessmentManagerProps) {
 
     try {
       if (editingAssessment) {
-        const response = await fetch(getServerUrl(`/assessments/${editingAssessment.id.replace('assessment:', '')}`), {
+        const response = await serverFetch(`/assessments/${editingAssessment.id.replace('assessment:', '')}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ export function AssessmentManager({ session }: AssessmentManagerProps) {
         if (!response.ok) throw new Error('Failed to update assessment');
         toast.success('Assessment updated successfully');
       } else {
-        const response = await fetch(getServerUrl('/assessments'), {
+        const response = await serverFetch('/assessments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -150,7 +150,7 @@ export function AssessmentManager({ session }: AssessmentManagerProps) {
     if (!confirm('Are you sure you want to delete this assessment?')) return;
 
     try {
-      const response = await fetch(getServerUrl(`/assessments/${assessmentId.replace('assessment:', '')}`), {
+      const response = await serverFetch(`/assessments/${assessmentId.replace('assessment:', '')}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

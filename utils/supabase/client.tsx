@@ -73,55 +73,151 @@ export const serverFetch = async (
   // Database fallback for progress routes ONLY
   const method = (init.method || 'GET').toUpperCase();
   const isGet = method === 'GET';
+  const isPost = method === 'POST';
+  const isDelete = method === 'DELETE';
   const fnNotFound = lastErr && /not found/i.test(String(lastErr.message || ''));
 
-  if (fnNotFound && isGet && (route === '/progress' || route.startsWith('/progress/'))) {
+  if (fnNotFound) {
     try {
-      if (route === '/progress') {
+      // Progress routes
+      if (isGet && (route === '/progress' || route.startsWith('/progress/'))) {
+        if (route === '/progress') {
+          const { data, error } = await supabase
+            .from('progress')
+            .select('*')
+            .order('recorded_at', { ascending: false });
+          if (error) throw error;
+          const progress = (data || []).map((record: any) => ({
+            id: record.id,
+            studentId: record.student_id,
+            topic: record.topic,
+            assessmentType: record.assessment_type,
+            score: record.score,
+            notes: record.notes,
+            recordedBy: record.recorded_by,
+            recordedAt: record.recorded_at,
+          }));
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ progress }),
+          } as unknown as Response;
+        }
+
+        if (route.startsWith('/progress/')) {
+          const studentId = route.slice('/progress/'.length);
+          const { data, error } = await supabase
+            .from('progress')
+            .select('*')
+            .eq('student_id', studentId)
+            .order('recorded_at', { ascending: false });
+          if (error) throw error;
+          const progress = (data || []).map((record: any) => ({
+            id: record.id,
+            studentId: record.student_id,
+            topic: record.topic,
+            assessmentType: record.assessment_type,
+            score: record.score,
+            notes: record.notes,
+            recordedBy: record.recorded_by,
+            recordedAt: record.recorded_at,
+          }));
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ progress }),
+          } as unknown as Response;
+        }
+      }
+
+      // Materials routes
+      if (isGet && route === '/materials') {
         const { data, error } = await supabase
-          .from('progress')
+          .from('materials')
           .select('*')
-          .order('recorded_at', { ascending: false });
+          .order('created_at', { ascending: false });
         if (error) throw error;
-        const progress = (data || []).map((record: any) => ({
-          id: record.id,
-          studentId: record.student_id,
-          topic: record.topic,
-          assessmentType: record.assessment_type,
-          score: record.score,
-          notes: record.notes,
-          recordedBy: record.recorded_by,
-          recordedAt: record.recorded_at,
-        }));
         return {
           ok: true,
           status: 200,
-          json: async () => ({ progress }),
+          json: async () => ({ materials: data || [] }),
         } as unknown as Response;
       }
 
-      if (route.startsWith('/progress/')) {
-        const studentId = route.slice('/progress/'.length);
+      // Topics routes
+      if (isGet && route === '/topics') {
         const { data, error } = await supabase
-          .from('progress')
+          .from('topics')
           .select('*')
-          .eq('student_id', studentId)
-          .order('recorded_at', { ascending: false });
+          .order('created_at', { ascending: false });
         if (error) throw error;
-        const progress = (data || []).map((record: any) => ({
-          id: record.id,
-          studentId: record.student_id,
-          topic: record.topic,
-          assessmentType: record.assessment_type,
-          score: record.score,
-          notes: record.notes,
-          recordedBy: record.recorded_by,
-          recordedAt: record.recorded_at,
-        }));
         return {
           ok: true,
           status: 200,
-          json: async () => ({ progress }),
+          json: async () => ({ topics: data || [] }),
+        } as unknown as Response;
+      }
+
+      // Announcements routes
+      if (isGet && route === '/content/announcements') {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ announcements: data || [] }),
+        } as unknown as Response;
+      }
+
+      // Assessments routes
+      if (isGet && route === '/assessments') {
+        const { data, error } = await supabase
+          .from('assessments')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ assessments: data || [] }),
+        } as unknown as Response;
+      }
+
+      // Submissions routes
+      if (isGet && route === '/submissions') {
+        const { data, error } = await supabase
+          .from('submissions')
+          .select('*')
+          .order('submitted_at', { ascending: false });
+        if (error) throw error;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ submissions: data || [] }),
+        } as unknown as Response;
+      }
+
+      // Delete account route
+      if (isDelete && route === '/profile') {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          throw new Error('Not authenticated');
+        }
+        
+        // Delete user profile and related data
+        await supabase.from('profiles').delete().eq('id', session.user.id);
+        
+        // Delete the auth user
+        const { error } = await supabase.rpc('delete_user');
+        if (error) throw error;
+        
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ success: true }),
         } as unknown as Response;
       }
     } catch (err) {

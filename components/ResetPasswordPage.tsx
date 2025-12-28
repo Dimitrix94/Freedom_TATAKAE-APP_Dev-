@@ -4,20 +4,17 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { ArrowLeft, Mail, Lock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Lock, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import logoImage from 'figma:asset/e6d79e8861bd18ad0650862c9dc2b4cc7c09cf38.png';
 
 interface ResetPasswordPageProps {
-  email: string;
-  resetCode?: string; // Optional - for development mode
   onBack: () => void;
-  onSuccess: () => void;
+  onSuccess?: () => void;
 }
 
-export function ResetPasswordPage({ email, resetCode, onBack, onSuccess }: ResetPasswordPageProps) {
+export function ResetPasswordPage({ onBack, onSuccess }: ResetPasswordPageProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -38,38 +35,75 @@ export function ResetPasswordPage({ email, resetCode, onBack, onSuccess }: Reset
     setIsLoading(true);
 
     try {
-      console.log('Verifying code and resetting password for:', email);
-      const url = getServerUrl('/verify-reset-code');
+      console.log('Updating password with recovery session...');
+      const supabase = createClient();
       
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          code: code.toUpperCase(),
-          newPassword,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to reset password');
+      // Exchange the URL hash for a session (if not already done)
+      const hash = window.location.hash.substring(1);
+      const hashParams = new URLSearchParams(hash);
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      
+      if (accessToken && refreshToken) {
+        console.log('Setting session from URL tokens...');
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        
+        if (sessionError) {
+          console.error('Session exchange error:', sessionError);
+          throw new Error('Failed to validate reset link. Please request a new one.');
+        }
+        
+        console.log('Session set successfully:', sessionData);
+      }
+      
+      // Verify we have a valid session
+      const { data: currentSession, error: sessionCheckError } = await supabase.auth.getSession();
+      
+      if (sessionCheckError || !currentSession.session) {
+        console.error('No valid recovery session found:', sessionCheckError);
+        throw new Error('Your password reset link has expired or is invalid. Please request a new one.');
       }
 
-      toast.success('Password reset successfully! You can now log in with your new password.', {
-        duration: 5000,
+      console.log('Valid session confirmed, updating password...');
+      
+      // Update password using the recovery session
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        console.error('Password update error:', error);
+        throw error;
+      }
+
+      console.log('Password updated successfully:', data);
+      
+      toast.success('Password reset successfully! Redirecting to login...', {
+        duration: 3000,
       });
       
-      onSuccess();
+      // Sign out the user after password reset to clear the recovery session
+      await supabase.auth.signOut();
+      
+      // Wait a moment for the toast to be visible, then redirect
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          // Clear the hash from URL
+          window.location.hash = '';
+          window.location.reload();
+        }
+      }, 1500);
     } catch (error: any) {
       console.error('Reset password error:', error);
-      toast.error(error.message || 'Failed to reset password. Please try again.');
-    } finally {
+      toast.error(error.message || 'Failed to reset password. Please try again or request a new reset link.');
       setIsLoading(false);
     }
+    // Don't set isLoading to false here if successful - we're redirecting
   };
 
   return (
@@ -90,78 +124,11 @@ export function ResetPasswordPage({ email, resetCode, onBack, onSuccess }: Reset
             </div>
             <CardTitle>Reset Your Password</CardTitle>
             <CardDescription>
-              Check your email for the 4-character code and enter it below
+              Enter your new password below
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Email confirmation box */}
-            <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
-              <div className="flex items-start gap-3 mb-3">
-                <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm text-blue-900 font-medium">
-                    Reset code sent to:
-                  </p>
-                  <p className="text-sm text-blue-700 font-semibold">
-                    {email}
-                  </p>
-                </div>
-              </div>
-              
-              {resetCode && (
-                <div className="mt-3 p-4 bg-white border-2 border-indigo-300 rounded-lg shadow-sm">
-                  <p className="text-xs text-indigo-600 mb-2 uppercase tracking-wide font-semibold text-center">
-                    Your Reset Code
-                  </p>
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    {resetCode.split('').map((char, i) => (
-                      <div
-                        key={i}
-                        className="w-12 h-14 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-400 rounded-lg flex items-center justify-center"
-                      >
-                        <span className="text-3xl font-bold text-indigo-700 font-mono">
-                          {char}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 text-center">
-                    💡 Development Mode: Code displayed for testing
-                  </p>
-                </div>
-              )}
-              
-              {!resetCode && (
-                <p className="text-xs text-blue-600 mt-2 text-center">
-                  📧 Check your email inbox for the reset code
-                </p>
-              )}
-            </div>
-
             <form onSubmit={handleResetPassword} className="space-y-4">
-              {/* Reset Code Input */}
-              <div className="space-y-2">
-                <Label htmlFor="reset-code" className="flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Reset Code (Check your email)
-                </Label>
-                <Input
-                  id="reset-code"
-                  name="reset-code"
-                  type="text"
-                  placeholder="Enter 4-character code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  maxLength={4}
-                  required
-                  className="text-center text-2xl font-bold tracking-widest uppercase"
-                  autoComplete="off"
-                />
-                <p className="text-xs text-gray-500">
-                  Check your email for the 4-character code
-                </p>
-              </div>
-
               {/* New Password */}
               <div className="space-y-2">
                 <Label htmlFor="new-password" className="flex items-center gap-2">
@@ -207,11 +174,11 @@ export function ResetPasswordPage({ email, resetCode, onBack, onSuccess }: Reset
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
                 <span>⏱️</span>
-                <p>Code expires in 15 minutes</p>
+                <p>Reset link expires in 60 minutes</p>
               </div>
               <div className="text-center">
                 <p className="text-xs text-gray-500">
-                  Didn't receive the code?{' '}
+                  Didn't receive the email?{' '}
                   <button
                     type="button"
                     onClick={onBack}

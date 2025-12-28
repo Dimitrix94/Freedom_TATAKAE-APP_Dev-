@@ -9,8 +9,7 @@ import {
   LogOut,
   TrendingUp,
   Bot,
-  Award,
-  FileSearch
+  Award
 } from 'lucide-react';
 import { LearningMaterials } from './LearningMaterials';
 import { TakeAssessment } from './TakeAssessment';
@@ -20,7 +19,7 @@ import { ProfileEditor } from './ProfileEditor';
 import { AIChat } from './AIChat';
 import { MyResults } from './MyResults';
 import { AnnouncementBar } from './AnnouncementBar';
-import ReviewAssessments from './ReviewAssessments';
+import { ReviewAssessments } from './ReviewAssessments';
 
 interface StudentDashboardProps {
   user: any;
@@ -66,7 +65,7 @@ export function StudentDashboard({ user, session, onLogout }: StudentDashboardPr
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-8 mb-6">
+          <TabsList className="grid w-full grid-cols-7 mb-6">
             <TabsTrigger value="learn" className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               Learn
@@ -75,17 +74,13 @@ export function StudentDashboard({ user, session, onLogout }: StudentDashboardPr
               <ClipboardCheck className="w-4 h-4" />
               Practice
             </TabsTrigger>
-            <TabsTrigger value="review" className="flex items-center gap-2">
-              <FileSearch className="w-4 h-4" />
-              Review
-            </TabsTrigger>
             <TabsTrigger value="results" className="flex items-center gap-2">
               <Award className="w-4 h-4" />
-              Results
+              My Results
             </TabsTrigger>
             <TabsTrigger value="progress" className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4" />
-              Progress
+              My Progress
             </TabsTrigger>
             <TabsTrigger value="ai-tutor" className="flex items-center gap-2">
               <Bot className="w-4 h-4" />
@@ -109,12 +104,8 @@ export function StudentDashboard({ user, session, onLogout }: StudentDashboardPr
             <TakeAssessment session={session} userId={user.id} />
           </TabsContent>
 
-          <TabsContent value="review" className="mt-0">
-            <ReviewAssessments studentId={user.id} />
-          </TabsContent>
-
           <TabsContent value="results" className="mt-0">
-            <MyResults session={session} />
+            <ReviewAssessments session={session} userId={user.id} />
           </TabsContent>
 
           <TabsContent value="progress" className="mt-0">

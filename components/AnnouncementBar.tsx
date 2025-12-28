@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getServerUrl } from '../utils/supabase/client';
+import { serverFetch } from '../utils/supabase/client';
 import { X, ChevronLeft, ChevronRight, Megaphone } from 'lucide-react';
 import { Button } from './ui/button';
 
@@ -39,7 +39,7 @@ export function AnnouncementBar({ session }: AnnouncementBarProps) {
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await fetch(getServerUrl('/content/announcements'), {
+      const response = await serverFetch('/content/announcements', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getServerUrl } from '../utils/supabase/client';
+import { serverFetch } from '../utils/supabase/client';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -36,7 +36,7 @@ export function MaterialsManager({ session }: MaterialsManagerProps) {
 
   const fetchMaterials = async () => {
     try {
-      const response = await fetch(getServerUrl('/materials'), {
+      const response = await serverFetch('/materials', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
@@ -66,7 +66,7 @@ export function MaterialsManager({ session }: MaterialsManagerProps) {
     try {
       if (editingMaterial) {
         // Update existing material
-        const response = await fetch(getServerUrl(`/materials/${editingMaterial.id.replace('material:', '')}`), {
+        const response = await serverFetch(`/materials/${editingMaterial.id.replace('material:', '')}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ export function MaterialsManager({ session }: MaterialsManagerProps) {
         toast.success('Material updated successfully');
       } else {
         // Create new material
-        const response = await fetch(getServerUrl('/materials'), {
+        const response = await serverFetch('/materials', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ export function MaterialsManager({ session }: MaterialsManagerProps) {
     if (!confirm('Are you sure you want to delete this material?')) return;
 
     try {
-      const response = await fetch(getServerUrl(`/materials/${materialId.replace('material:', '')}`), {
+      const response = await serverFetch(`/materials/${materialId.replace('material:', '')}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
