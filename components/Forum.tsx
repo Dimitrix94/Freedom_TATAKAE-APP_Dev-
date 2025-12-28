@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { getServerUrl } from '../utils/supabase/client';
+import { useState, useEffect } from 'react';
+import { serverFetch, getServerUrl } from '../utils/supabase/client';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from './ui/card';

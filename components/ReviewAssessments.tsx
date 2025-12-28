@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '../utils/supabase/client';
+import { getServerUrl } from '../utils/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -13,9 +13,10 @@ import {
   ArrowLeft,
   FileText,
   Award,
-  TrendingUp
+  AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner@2.0.3';
 
 interface Assessment {
   id: string;
@@ -25,84 +26,55 @@ interface Assessment {
 }
 
 interface Question {
-  id: string;
+  id?: string;
   question: string;
   options: string[];
   correctAnswer: number;
+  type?: string;
 }
 
 interface Submission {
   id: string;
-  assessment_id: string;
-  student_id: string;
-  answers: number[];
+  userId: string;
+  assessmentId: string;
+  answers: { [key: number]: number };
   score: number;
-  max_score: number;
-  submitted_at: string;
-  assessment_title?: string;
-  assessment_description?: string;
-  assessment_questions?: Question[];
+  totalQuestions: number;
+  submittedAt: string;
+  assessment?: Assessment;
 }
 
 interface ReviewAssessmentsProps {
-  studentId: string;
+  session: any;
+  userId: string;
 }
 
-export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps) {
+export function ReviewAssessments({ session, userId }: ReviewAssessmentsProps) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
     fetchSubmissions();
-  }, [studentId]);
+  }, [userId]);
 
   const fetchSubmissions = async () => {
     try {
       setLoading(true);
       
-      // Fetch all submissions for this student
-      const { data: submissionsData, error: submissionsError } = await supabase
-        .from('kv_store_d59960c4')
-        .select('key, value')
-        .like('key', `submission:${studentId}:%`);
-
-      if (submissionsError) throw submissionsError;
-
-      // Fetch all assessments to get titles and questions
-      const { data: assessmentsData, error: assessmentsError } = await supabase
-        .from('kv_store_d59960c4')
-        .select('key, value')
-        .like('key', 'assessment:%');
-
-      if (assessmentsError) throw assessmentsError;
-
-      // Create a map of assessments
-      const assessmentsMap: { [key: string]: Assessment } = {};
-      assessmentsData?.forEach((item) => {
-        const assessment = JSON.parse(item.value);
-        assessmentsMap[assessment.id] = assessment;
+      const response = await fetch(getServerUrl(`/submissions/${userId}`), {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
       });
 
-      // Parse submissions and enrich with assessment data
-      const parsedSubmissions: Submission[] = (submissionsData || [])
-        .map((item) => {
-          const submission = JSON.parse(item.value);
-          const assessment = assessmentsMap[submission.assessment_id];
-          
-          return {
-            ...submission,
-            assessment_title: assessment?.title || 'Unknown Assessment',
-            assessment_description: assessment?.description || '',
-            assessment_questions: assessment?.questions || []
-          };
-        })
-        .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
-
-      setSubmissions(parsedSubmissions);
-    } catch (error) {
+      if (!response.ok) throw new Error('Failed to fetch submissions');
+      
+      const data = await response.json();
+      setSubmissions(data.submissions || []);
+    } catch (error: any) {
       console.error('Error fetching submissions:', error);
+      toast.error('Failed to load past assessments');
     } finally {
       setLoading(false);
     }
@@ -138,12 +110,19 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
   }
 
   // Review view - showing individual assessment with answers
-  if (selectedSubmission) {
-    const percentage = getPercentage(selectedSubmission.score, selectedSubmission.max_score);
-    const correctCount = selectedSubmission.answers.filter(
-      (answer, index) => answer === selectedSubmission.assessment_questions![index].correctAnswer
+  if (selectedSubmission && selectedSubmission.assessment) {
+    const assessment = selectedSubmission.assessment;
+    const percentage = getPercentage(selectedSubmission.score, selectedSubmission.totalQuestions);
+    
+    // Convert answers object to array for easier processing
+    const answersArray = Object.keys(selectedSubmission.answers || {})
+      .sort((a, b) => Number(a) - Number(b))
+      .map(key => selectedSubmission.answers[Number(key)]);
+    
+    const correctCount = answersArray.filter(
+      (answer, index) => answer === assessment.questions[index]?.correctAnswer
     ).length;
-    const incorrectCount = selectedSubmission.assessment_questions!.length - correctCount;
+    const incorrectCount = assessment.questions.length - correctCount;
 
     return (
       <div className="space-y-6">
@@ -160,18 +139,18 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
           
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <h1 className="text-3xl mb-2">{selectedSubmission.assessment_title}</h1>
-              {selectedSubmission.assessment_description && (
-                <p className="text-white/90 mb-4">{selectedSubmission.assessment_description}</p>
+              <h1 className="text-3xl mb-2">{assessment.title}</h1>
+              {assessment.description && (
+                <p className="text-white/90 mb-4">{assessment.description}</p>
               )}
               <div className="flex items-center gap-4 text-sm text-white/80">
                 <div className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  <span>Submitted: {format(new Date(selectedSubmission.submitted_at), 'MMM dd, yyyy')}</span>
+                  <span>Submitted: {format(new Date(selectedSubmission.submittedAt), 'MMM dd, yyyy')}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
-                  <span>{format(new Date(selectedSubmission.submitted_at), 'h:mm a')}</span>
+                  <span>{format(new Date(selectedSubmission.submittedAt), 'h:mm a')}</span>
                 </div>
               </div>
             </div>
@@ -180,7 +159,7 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4">
                 <div className="text-4xl mb-1">{percentage}%</div>
                 <div className="text-sm text-white/80">
-                  {selectedSubmission.score} / {selectedSubmission.max_score} points
+                  {selectedSubmission.score} / {selectedSubmission.totalQuestions} points
                 </div>
               </div>
             </div>
@@ -224,7 +203,7 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
                   <Award className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <div className="text-2xl">{selectedSubmission.assessment_questions!.length}</div>
+                  <div className="text-2xl">{assessment.questions.length}</div>
                   <div className="text-sm text-muted-foreground">Total Questions</div>
                 </div>
               </div>
@@ -243,18 +222,22 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
           <CardContent>
             <ScrollArea className="h-[600px] pr-4">
               <div className="space-y-6">
-                {selectedSubmission.assessment_questions!.map((question, index) => {
-                  const userAnswer = selectedSubmission.answers[index];
+                {assessment.questions.map((question, index) => {
+                  const userAnswer = answersArray[index];
                   const isCorrect = userAnswer === question.correctAnswer;
+                  const hasAnswer = userAnswer !== undefined && userAnswer !== null;
 
                   return (
-                    <div key={question.id} className="space-y-3">
+                    <div key={index} className="space-y-3">
                       {/* Question Header */}
                       <div className="flex items-start gap-3">
                         <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${
+                          !hasAnswer ? 'bg-gray-100' :
                           isCorrect ? 'bg-green-100' : 'bg-red-100'
                         }`}>
-                          {isCorrect ? (
+                          {!hasAnswer ? (
+                            <AlertCircle className="h-5 w-5 text-gray-600" />
+                          ) : isCorrect ? (
                             <CheckCircle2 className="h-5 w-5 text-green-600" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-600" />
@@ -265,8 +248,11 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
                             <h4 className="font-medium">
                               Question {index + 1}
                             </h4>
-                            <Badge variant={isCorrect ? 'default' : 'destructive'}>
-                              {isCorrect ? 'Correct' : 'Incorrect'}
+                            <Badge variant={
+                              !hasAnswer ? 'outline' :
+                              isCorrect ? 'default' : 'destructive'
+                            }>
+                              {!hasAnswer ? 'Not Answered' : isCorrect ? 'Correct' : 'Incorrect'}
                             </Badge>
                           </div>
                           <p className="text-muted-foreground mt-1">{question.question}</p>
@@ -313,23 +299,23 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
                         })}
                       </div>
 
-                      {/* Explanation for incorrect answers */}
-                      {!isCorrect && (
+                      {/* Explanation for incorrect/unanswered */}
+                      {(!isCorrect || !hasAnswer) && (
                         <div className="ml-11 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                           <div className="flex items-start gap-2">
-                            <TrendingUp className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
                             <div>
                               <p className="font-medium text-blue-900 mb-1">Learning Point</p>
                               <p className="text-sm text-blue-800">
                                 The correct answer is <strong>{String.fromCharCode(65 + question.correctAnswer)}. {question.options[question.correctAnswer]}</strong>. 
-                                Review this topic in your learning materials to strengthen your understanding.
+                                {!hasAnswer && ' You did not answer this question.'} Review this topic in your learning materials to strengthen your understanding.
                               </p>
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {index < selectedSubmission.assessment_questions!.length - 1 && (
+                      {index < assessment.questions.length - 1 && (
                         <Separator className="my-6" />
                       )}
                     </div>
@@ -373,10 +359,8 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
       ) : (
         <div className="grid gap-4">
           {submissions.map((submission) => {
-            const percentage = getPercentage(submission.score, submission.max_score);
-            const correctCount = submission.answers.filter(
-              (answer, index) => answer === submission.assessment_questions![index]?.correctAnswer
-            ).length;
+            const percentage = getPercentage(submission.score, submission.totalQuestions);
+            const assessment = submission.assessment;
 
             return (
               <Card 
@@ -388,36 +372,38 @@ export default function ReviewAssessments({ studentId }: ReviewAssessmentsProps)
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-medium">{submission.assessment_title}</h3>
+                        <h3 className="text-lg font-medium">
+                          {assessment?.title || 'Assessment'}
+                        </h3>
                         <Badge variant={getScoreBadgeVariant(percentage)}>
                           {percentage}%
                         </Badge>
                       </div>
                       
-                      {submission.assessment_description && (
+                      {assessment?.description && (
                         <p className="text-sm text-muted-foreground mb-3">
-                          {submission.assessment_description}
+                          {assessment.description}
                         </p>
                       )}
 
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          <span>{format(new Date(submission.submitted_at), 'MMM dd, yyyy')}</span>
+                          <span>{format(new Date(submission.submittedAt), 'MMM dd, yyyy')}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          <span>{format(new Date(submission.submitted_at), 'h:mm a')}</span>
+                          <span>{format(new Date(submission.submittedAt), 'h:mm a')}</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right space-y-2">
                       <div className={`text-3xl ${getScoreColor(percentage)}`}>
-                        {submission.score}/{submission.max_score}
+                        {submission.score}/{submission.totalQuestions}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {correctCount} of {submission.assessment_questions!.length} correct
+                        {assessment?.questions.length || 0} questions
                       </div>
                       <Button size="sm" className="w-full">
                         Review Answers

@@ -30,9 +30,7 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [showSetupHelper, setShowSetupHelper] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
-  const [showResetPasswordPage, setShowResetPasswordPage] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [resetCode, setResetCode] = useState('');
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -175,41 +173,28 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
     const email = formData.get('reset-email') as string;
 
     try {
-      console.log('Sending reset code to:', email);
-      const url = getServerUrl('/send-reset-code');
+      console.log('Sending password reset email to:', email);
+      const supabase = createClient();
       
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+      // Send password reset email using Supabase
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/#type=recovery`,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send reset code');
+      if (error) {
+        console.error('Password reset error:', error);
+        throw error;
       }
 
-      // Store email and code for the reset page
+      // Store email for reference
       setResetEmail(email);
-      if (data.devCode) {
-        setResetCode(data.devCode);
-        toast.success(
-          `Reset code sent! (Dev: ${data.devCode})`,
-          { duration: 10000 }
-        );
-      } else {
-        toast.success('Reset code sent to your email!', { duration: 5000 });
-      }
+      toast.success('Password reset link sent to your email! Check your inbox.', { duration: 5000 });
       
-      // Close dialog and show reset password page
+      // Close dialog
       setShowForgotPassword(false);
-      setShowResetPasswordPage(true);
     } catch (error: any) {
       console.error('Password reset error:', error);
-      toast.error(error.message || 'Failed to send reset code. Please try again.');
+      toast.error(error.message || 'Failed to send reset email. Please try again.');
     } finally {
       setSendingReset(false);
     }
@@ -218,27 +203,6 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
   // If setup helper should be shown, show it instead
   if (showSetupHelper) {
     return <SetupHelper />;
-  }
-
-  // If reset password page should be shown
-  if (showResetPasswordPage) {
-    return (
-      <ResetPasswordPage
-        email={resetEmail}
-        resetCode={resetCode}
-        onBack={() => {
-          setShowResetPasswordPage(false);
-          setResetEmail('');
-          setResetCode('');
-        }}
-        onSuccess={() => {
-          setShowResetPasswordPage(false);
-          setResetEmail('');
-          setResetCode('');
-          toast.success('You can now log in with your new password!');
-        }}
-      />
-    );
   }
 
   return (
@@ -396,7 +360,7 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>
-              Enter your email address and we'll send you a 4-character reset code.
+              Enter your email address and we'll send you a password reset link.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleForgotPassword} className="space-y-4">
@@ -424,7 +388,7 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
                 Cancel
               </Button>
               <Button type="submit" className="flex-1" disabled={sendingReset}>
-                {sendingReset ? 'Sending...' : 'Send Reset Code'}
+                {sendingReset ? 'Sending...' : 'Send Reset Link'}
               </Button>
             </div>
           </form>
