@@ -7,6 +7,7 @@ import { TeacherDashboard } from './components/TeacherDashboard';
 import { StudentDashboard } from './components/StudentDashboard';
 import { Toaster } from './components/ui/sonner';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -32,12 +33,20 @@ export default function App() {
     const supabase = createClient();
     
     // Check if this is a password reset redirect
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    // Supabase uses #access_token=...&type=recovery format
+    const hash = window.location.hash.substring(1);
+    const hashParams = new URLSearchParams(hash);
     const type = hashParams.get('type');
     
+    console.log('Hash params:', hash);
+    console.log('Type:', type);
+    
     if (type === 'recovery') {
+      console.log('Recovery session detected, showing reset password page');
       setIsPasswordReset(true);
       setCurrentPage('reset-password');
+      setLoading(false); // Important: Stop loading screen
+      return; // Don't run other initialization during password reset
     }
     
     // Auto-confirm users if the function exists
@@ -67,6 +76,7 @@ export default function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth state changed:', _event, session);
       setSession(session);
       if (session?.user) {
         setUser(session.user as User);
@@ -143,6 +153,15 @@ export default function App() {
           onBack={() => {
             setCurrentPage('login');
             setIsPasswordReset(false);
+            // Clear the hash from URL
+            window.location.hash = '';
+          }}
+          onSuccess={() => {
+            setCurrentPage('login');
+            setIsPasswordReset(false);
+            // Clear the hash from URL
+            window.location.hash = '';
+            toast.success('You can now log in with your new password!');
           }}
         />
       )}
