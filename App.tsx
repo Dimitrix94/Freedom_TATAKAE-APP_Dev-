@@ -32,22 +32,58 @@ export default function App() {
   useEffect(() => {
     const supabase = createClient();
     
-    // Check if this is a password reset redirect
-    // Supabase uses #access_token=...&type=recovery format
-    const hash = window.location.hash.substring(1);
-    const hashParams = new URLSearchParams(hash);
-    const type = hashParams.get('type');
+    // Check if this is a password reset redirect FIRST
+    // Supabase can use different formats:
+    // - #access_token=...&type=recovery
+    // - #/reset-password?token=...
+    const fullUrl = window.location.href;
+    const hash = window.location.hash;
     
-    console.log('Hash params:', hash);
-    console.log('Type:', type);
+    console.log('=== PASSWORD RESET CHECK ===');
+    console.log('Full URL:', fullUrl);
+    console.log('Hash:', hash);
     
-    if (type === 'recovery') {
-      console.log('Recovery session detected, showing reset password page');
+    // Check for recovery type in hash
+    if (hash.includes('type=recovery') || hash.includes('recovery')) {
+      console.log('✅ Recovery keyword detected in hash');
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const type = hashParams.get('type');
+      console.log('Type parameter:', type);
+      
       setIsPasswordReset(true);
       setCurrentPage('reset-password');
-      setLoading(false); // Important: Stop loading screen
-      return; // Don't run other initialization during password reset
+      setLoading(false);
+      
+      // Still set up auth listener for when password is reset
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        console.log('Auth state changed during reset:', _event);
+        if (_event === 'PASSWORD_RECOVERY') {
+          console.log('Password recovery event received');
+        }
+      });
+      
+      return () => subscription.unsubscribe();
     }
+    
+    // Also check if hash contains access_token (another recovery indicator)
+    if (hash.includes('access_token') && hash.includes('refresh_token')) {
+      console.log('✅ Access token and refresh token detected - likely recovery flow');
+      setIsPasswordReset(true);
+      setCurrentPage('reset-password');
+      setLoading(false);
+      
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        console.log('Auth state changed during reset:', _event);
+      });
+      
+      return () => subscription.unsubscribe();
+    }
+    
+    console.log('No recovery indicators found, proceeding with normal flow');
     
     // Auto-confirm users if the function exists
     const autoConfirmUsers = async () => {
@@ -65,6 +101,7 @@ export default function App() {
     
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Session check:', session ? 'Found session' : 'No session');
       setSession(session);
       if (session?.user) {
         setUser(session.user as User);
@@ -107,7 +144,29 @@ export default function App() {
     );
   }
 
-  // If user is logged in, show dashboard
+  // Priority 1: Show password reset page if it's a recovery flow
+  if (isPasswordReset && currentPage === 'reset-password') {
+    return (
+      <>
+        <ResetPasswordPage 
+          onBack={() => {
+            setCurrentPage('login');
+            setIsPasswordReset(false);
+            window.location.hash = '';
+          }}
+          onSuccess={() => {
+            setCurrentPage('login');
+            setIsPasswordReset(false);
+            window.location.hash = '';
+            toast.success('You can now log in with your new password!');
+          }}
+        />
+        <Toaster />
+      </>
+    );
+  }
+
+  // Priority 2: If user is logged in, show dashboard
   if (user && session) {
     return (
       <>
@@ -121,7 +180,7 @@ export default function App() {
     );
   }
 
-  // If not logged in, show public pages
+  // Priority 3: If not logged in, show public pages
   return (
     <>
       {currentPage === 'landing' && (
@@ -145,24 +204,6 @@ export default function App() {
             setSession(session);
           }}
           onBack={() => setCurrentPage('landing')}
-        />
-      )}
-      
-      {currentPage === 'reset-password' && (
-        <ResetPasswordPage 
-          onBack={() => {
-            setCurrentPage('login');
-            setIsPasswordReset(false);
-            // Clear the hash from URL
-            window.location.hash = '';
-          }}
-          onSuccess={() => {
-            setCurrentPage('login');
-            setIsPasswordReset(false);
-            // Clear the hash from URL
-            window.location.hash = '';
-            toast.success('You can now log in with your new password!');
-          }}
         />
       )}
       
