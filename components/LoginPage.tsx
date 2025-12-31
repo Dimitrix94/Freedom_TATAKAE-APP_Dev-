@@ -176,9 +176,14 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
       console.log('Sending password reset email to:', email);
       const supabase = createClient();
       
+      // Get the current origin for redirect
+      const redirectUrl = `${window.location.origin}`;
+      console.log('Reset redirect URL:', redirectUrl);
+      
       // Send password reset email using Supabase
+      // The redirectTo should be just the origin - Supabase will add the hash with tokens
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/#type=recovery`,
+        redirectTo: redirectUrl,
       });
 
       if (error) {
@@ -188,10 +193,16 @@ export function LoginPage({ onLogin, onBack }: LoginPageProps) {
 
       // Store email for reference
       setResetEmail(email);
-      toast.success('Password reset link sent to your email! Check your inbox.', { duration: 5000 });
+      toast.success('Password reset link sent! Please check your email and click the link to reset your password.', { 
+        duration: 6000 
+      });
       
-      // Close dialog
-      setShowForgotPassword(false);
+      console.log('✅ Password reset email sent successfully to:', email);
+      
+      // Close dialog after a moment
+      setTimeout(() => {
+        setShowForgotPassword(false);
+      }, 1000);
     } catch (error: any) {
       console.error('Password reset error:', error);
       toast.error(error.message || 'Failed to send reset email. Please try again.');

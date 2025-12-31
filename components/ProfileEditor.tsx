@@ -21,6 +21,7 @@ import {
 } from './ui/alert-dialog';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 
 interface ProfileEditorProps {
   user: any;
@@ -34,6 +35,7 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user.user_metadata.avatar_url || null);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
   // Check for valid account creation timestamp
   const hasValidCreatedAt = user.created_at && !isNaN(new Date(user.created_at).getTime());
@@ -352,11 +354,16 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
 
   const handleForgotPassword = async () => {
     try {
+      console.log('=== PROFILE PASSWORD RESET REQUEST ===');
       const supabase = createClient();
       
       // Send password reset email
+      // Use just the origin - Supabase will add the hash with tokens
+      const redirectUrl = window.location.origin;
+      console.log('Profile reset redirect URL:', redirectUrl);
+      
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/#type=recovery`,
+        redirectTo: redirectUrl,
       });
 
       if (error) {
@@ -364,7 +371,10 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
         throw error;
       }
 
-      toast.success('Password reset link sent to your email! Check your inbox.');
+      console.log('✅ Password reset email sent successfully to:', user.email);
+      toast.success('Password reset link sent to your email! Check your inbox and click the link to reset your password.', {
+        duration: 6000
+      });
     } catch (error: any) {
       console.error('Password reset exception:', error);
       toast.error(error.message || 'Failed to send reset email. Please try again.');
@@ -574,7 +584,9 @@ export function ProfileEditor({ user, session }: ProfileEditorProps) {
                   type="password"
                   placeholder="Enter new password (min 6 characters)"
                   minLength={6}
+                  onChange={(e) => setNewPassword(e.target.value)}
                 />
+                <PasswordStrengthIndicator password={newPassword} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password" className="flex items-center gap-2">

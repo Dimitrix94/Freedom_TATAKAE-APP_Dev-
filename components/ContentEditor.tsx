@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { getServerUrl } from '../utils/supabase/client';
+import { getServerUrl, serverFetch, createClient } from '../utils/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Settings, Save, Plus, Trash2, Edit2, Megaphone, AlertCircle } from 'lucide-react';
+import { Settings, Save, Plus, Trash2, Edit2, Megaphone, AlertCircle, CheckCircle, XCircle, MessageSquare, BookOpen, Clock } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Alert, AlertDescription } from './ui/alert';
+import { Badge } from './ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,30 @@ interface Announcement {
   updatedBy?: string;
 }
 
+interface PendingMaterial {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  content: string;
+  difficulty: string;
+  created_by: string;
+  created_at: string;
+  submitted_by_name?: string;
+  approval_status: 'pending' | 'approved' | 'rejected';
+}
+
+interface PendingTopic {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  author_id: string;
+  author_name: string;
+  created_at: string;
+  approval_status: 'pending' | 'approved' | 'rejected';
+}
+
 export function ContentEditor({ session }: ContentEditorProps) {
   const [saving, setSaving] = useState(false);
   const [content, setContent] = useState<Record<string, any>>({});
@@ -45,10 +70,16 @@ export function ContentEditor({ session }: ContentEditorProps) {
     message: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
   });
+  
+  // New state for user content moderation
+  const [pendingMaterials, setPendingMaterials] = useState<PendingMaterial[]>([]);
+  const [pendingTopics, setPendingTopics] = useState<PendingTopic[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
 
   useEffect(() => {
     fetchContent();
     fetchAnnouncements();
+    fetchPendingContent();
   }, []);
 
   const fetchContent = async () => {
@@ -99,6 +130,45 @@ export function ContentEditor({ session }: ContentEditorProps) {
     } catch (error) {
       console.error('Error fetching announcements:', error);
       setAnnouncements([]);
+    }
+  };
+
+  const fetchPendingContent = async () => {
+    setLoadingPending(true);
+    try {
+      const response = await fetch(getServerUrl('/content/pending'), {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+      const data = await response.json();
+      
+      // Handle the content structure
+      if (data.content && data.content.pendingMaterials) {
+        const materialsList = Array.isArray(data.content.pendingMaterials) 
+          ? data.content.pendingMaterials 
+          : [];
+        
+        setPendingMaterials(materialsList);
+      } else {
+        setPendingMaterials([]);
+      }
+
+      if (data.content && data.content.pendingTopics) {
+        const topicsList = Array.isArray(data.content.pendingTopics) 
+          ? data.content.pendingTopics 
+          : [];
+        
+        setPendingTopics(topicsList);
+      } else {
+        setPendingTopics([]);
+      }
+    } catch (error) {
+      console.error('Error fetching pending content:', error);
+      setPendingMaterials([]);
+      setPendingTopics([]);
+    } finally {
+      setLoadingPending(false);
     }
   };
 
@@ -335,10 +405,17 @@ export function ContentEditor({ session }: ContentEditorProps) {
       </div>
 
       <Tabs defaultValue="home">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="home">Home Page</TabsTrigger>
           <TabsTrigger value="about">About Page</TabsTrigger>
           <TabsTrigger value="announcements">Announcements</TabsTrigger>
+          <TabsTrigger value="user-content">
+            <Clock className="w-4 h-4 mr-2" />
+            User Content
+            {(pendingMaterials.length + pendingTopics.length > 0) && (
+              <Badge className="ml-2 bg-orange-500">{pendingMaterials.length + pendingTopics.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="home">
@@ -662,6 +739,252 @@ export function ContentEditor({ session }: ContentEditorProps) {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="user-content">
+          <div className="space-y-6">
+            {/* Pending Materials Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  Pending Materials
+                  {pendingMaterials.length > 0 && (
+                    <Badge className="bg-orange-500">{pendingMaterials.length}</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Review and approve user-submitted learning materials
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingPending ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600">Loading pending content...</p>
+                  </div>
+                ) : pendingMaterials.length === 0 ? (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No pending materials to review. All caught up!
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingMaterials.map((material) => (
+                      <Card key={material.id} className="border-2 border-orange-200 bg-orange-50">
+                        <CardContent className="pt-4">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-lg">{material.title}</h4>
+                                <p className="text-sm text-gray-600 mt-1">{material.description}</p>
+                              </div>
+                              <Badge className="bg-orange-500 ml-2">Pending</Badge>
+                            </div>
+                            
+                            <div className="flex gap-2 text-sm">
+                              <Badge variant="outline">{material.category}</Badge>
+                              <Badge variant="outline">{material.difficulty}</Badge>
+                            </div>
+                            
+                            <div className="bg-white p-3 rounded border">
+                              <p className="text-sm text-gray-700 line-clamp-3">{material.content}</p>
+                            </div>
+                            
+                            <div className="flex items-center justify-between pt-2">
+                              <div className="text-xs text-gray-500">
+                                Submitted by: {material.submitted_by_name || 'Unknown'} • {new Date(material.created_at).toLocaleString()}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={async () => {
+                                    setSaving(true);
+                                    try {
+                                      const supabase = createClient();
+                                      const { error } = await supabase
+                                        .from('materials')
+                                        .update({ approval_status: 'approved' })
+                                        .eq('id', material.id);
+                                      
+                                      if (error) throw error;
+                                      
+                                      toast.success('Material approved successfully!');
+                                      fetchPendingContent();
+                                    } catch (error: any) {
+                                      toast.error('Failed to approve material');
+                                    } finally {
+                                      setSaving(false);
+                                    }
+                                  }}
+                                  disabled={saving}
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={async () => {
+                                    if (!confirm('Are you sure you want to reject this material?')) return;
+                                    
+                                    setSaving(true);
+                                    try {
+                                      const supabase = createClient();
+                                      const { error } = await supabase
+                                        .from('materials')
+                                        .update({ approval_status: 'rejected' })
+                                        .eq('id', material.id);
+                                      
+                                      if (error) throw error;
+                                      
+                                      toast.success('Material rejected');
+                                      fetchPendingContent();
+                                    } catch (error: any) {
+                                      toast.error('Failed to reject material');
+                                    } finally {
+                                      setSaving(false);
+                                    }
+                                  }}
+                                  disabled={saving}
+                                >
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Pending Topics Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Pending Discussion Topics
+                  {pendingTopics.length > 0 && (
+                    <Badge className="bg-orange-500">{pendingTopics.length}</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Review and approve user-created forum topics
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingPending ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600">Loading pending content...</p>
+                  </div>
+                ) : pendingTopics.length === 0 ? (
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No pending topics to review. All caught up!
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingTopics.map((topic) => (
+                      <Card key={topic.id} className="border-2 border-orange-200 bg-orange-50">
+                        <CardContent className="pt-4">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-lg">{topic.title}</h4>
+                              </div>
+                              <Badge className="bg-orange-500 ml-2">Pending</Badge>
+                            </div>
+                            
+                            <Badge variant="outline">{topic.category}</Badge>
+                            
+                            <div className="bg-white p-3 rounded border">
+                              <p className="text-sm text-gray-700">{topic.content}</p>
+                            </div>
+                            
+                            <div className="flex items-center justify-between pt-2">
+                              <div className="text-xs text-gray-500">
+                                Posted by: {topic.author_name} • {new Date(topic.created_at).toLocaleString()}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={async () => {
+                                    setSaving(true);
+                                    try {
+                                      const supabase = createClient();
+                                      const { error } = await supabase
+                                        .from('topics')
+                                        .update({ approval_status: 'approved' })
+                                        .eq('id', topic.id);
+                                      
+                                      if (error) throw error;
+                                      
+                                      toast.success('Topic approved successfully!');
+                                      fetchPendingContent();
+                                    } catch (error: any) {
+                                      toast.error('Failed to approve topic');
+                                    } finally {
+                                      setSaving(false);
+                                    }
+                                  }}
+                                  disabled={saving}
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={async () => {
+                                    if (!confirm('Are you sure you want to reject this topic?')) return;
+                                    
+                                    setSaving(true);
+                                    try {
+                                      const supabase = createClient();
+                                      const { error } = await supabase
+                                        .from('topics')
+                                        .update({ approval_status: 'rejected' })
+                                        .eq('id', topic.id);
+                                      
+                                      if (error) throw error;
+                                      
+                                      toast.success('Topic rejected');
+                                      fetchPendingContent();
+                                    } catch (error: any) {
+                                      toast.error('Failed to reject topic');
+                                    } finally {
+                                      setSaving(false);
+                                    }
+                                  }}
+                                  disabled={saving}
+                                >
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
