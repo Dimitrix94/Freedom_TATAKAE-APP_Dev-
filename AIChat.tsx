@@ -19,7 +19,7 @@ export function AIChat() {
     {
       role: "assistant",
       content:
-        "Hello! I'm your HCI tutor powered by SambaNova. I can help you understand Human-Computer Interaction concepts, answer your questions, and provide learning suggestions. What would you like to learn about today?",
+        "Hello! I'm your HCI tutor powered by SambaNova AI. I can help you understand The Human-Computer Interaction concepts, answer your questions, and provide learning suggestions. What would you like to learn about today?",
     },
   ]);
 
@@ -38,8 +38,8 @@ export function AIChat() {
   const suggestedQuestions = [
     "What are the key principles of HCI?",
     "Explain user-centered design",
-    "apa itu Ujian Kebolehgunaan?",
-    "Bagaimanakah cara saya mencipta antara muka pengguna yang berkesan?",
+    "Apakah itu Ujian Kebolehgunaan?",
+    "Bagaimanakah cara untuk mencipta antara muka pengguna yang berkesan",
   ];
 
 
@@ -145,7 +145,7 @@ export function AIChat() {
 
     return (
       data?.choices?.[0]?.message?.content ||
-      "I'm sorry — I couldn't generate a response."
+      "I'm sorry — I couldn't generate a response. Please Try again later."
     );
   };
 
@@ -161,7 +161,7 @@ export function AIChat() {
 
     try {
       const fullHistory = [
-        { role: "system", content: "You are a helpful HCI tutor." },
+        { role: "system", content: "You are an HCI tutor, try to give Learning Suggestions After Responding, Resond in Malay or English, Dont Respond in Indonesian Language" },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userMessage },
       ];
